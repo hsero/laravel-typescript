@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use ReflectionClass;
 use ReflectionMethod;
 use Throwable;
@@ -33,7 +33,7 @@ class ModelGenerator extends AbstractGenerator
     public function __construct()
     {
         // Enums aren't supported by DBAL, so map enum columns to string.
-        DB::getDoctrineSchemaManager()->getDatabasePlatform()->registerDoctrineTypeMapping('enum', 'string');
+        // DB::getDoctrineSchemaManager()->getDatabasePlatform()->registerDoctrineTypeMapping('enum', 'string');
     }
 
     public function getDefinition(): ?string
@@ -56,20 +56,16 @@ class ModelGenerator extends AbstractGenerator
     {
         $this->model = $this->reflection->newInstance();
 
-        $this->columns = collect(
-            $this->model->getConnection()
-                ->getDoctrineSchemaManager()
-                ->listTableColumns($this->model->getConnection()->getTablePrefix() . $this->model->getTable())
-        );
+        $this->columns = collect(Schema::getColumns($this->model->getTable()));
     }
 
     protected function getProperties(): string
     {
-        return $this->columns->map(function (Column $column) {
+        return $this->columns->map(function ($column) {
             return (string) new TypeScriptProperty(
-                name: $column->getName(),
-                types: $this->getPropertyType($column->getType()->getName()),
-                nullable: !$column->getNotnull()
+                name: $column['name'],
+                types: $this->getPropertyType($column['type']),
+                nullable: $column['nullable']
             );
         })
             ->join(PHP_EOL . '        ');
@@ -93,7 +89,7 @@ class ModelGenerator extends AbstractGenerator
                 return [$property => $method];
             })
             ->reject(function (ReflectionMethod $method, string $property) {
-                return $this->columns->contains(fn (Column $column) => $column->getName() == $property);
+                return $this->columns->contains(fn ($column) => $column['name'] == $property);
             })
             ->reject(function (ReflectionMethod $method, string $property) use ($relationsToSkip) {
                 return $relationsToSkip->contains($property);

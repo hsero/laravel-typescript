@@ -4,7 +4,6 @@ namespace Based\TypeScript\Generators;
 
 use Based\TypeScript\Definitions\TypeScriptProperty;
 use Based\TypeScript\Definitions\TypeScriptType;
-use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Types\Types;
 use Illuminate\Contracts\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -225,13 +224,10 @@ class RequestGenerator extends AbstractGenerator
             return null;
         }
 
-        $schemaManager = $connection->getDoctrineSchemaManager();
-        $columns = collect($schemaManager->listTableColumns("$prefix$table"));
+        $columns = collect(Schema::getColumns("$prefix$table"));
+        $column = $columns->first(fn ($column) => $column['name'] === $columnName);
 
-        /** @var Column $column */
-        $column = $columns->first(fn (Column $column) => $column->getName() === $columnName);
-
-        return $this->getColumnType($column->getType()->getName());
+        return $this->getColumnType($column['type']);
     }
 
     #[Pure] protected function getColumnType(string $type): string|array
